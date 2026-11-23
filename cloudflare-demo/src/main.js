@@ -5,6 +5,7 @@ const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'modu
 
 const elements = {
   modelSelect: document.getElementById('model-select'),
+  multiScaleToggle: document.getElementById('multiscale-toggle'),
   tabUpload: document.getElementById('tab-upload'),
   tabDraw: document.getElementById('tab-draw'),
   paneUpload: document.getElementById('pane-upload'),
@@ -33,6 +34,8 @@ const elements = {
   verdictLabel: document.getElementById('verdict-label'),
   verdictSub: document.getElementById('verdict-sub'),
   scoresList: document.getElementById('scores-list'),
+  scalesSection: document.getElementById('scales-section'),
+  scalesList: document.getElementById('scales-list'),
   metaSignals: document.getElementById('meta-signals'),
   metaEntries: document.getElementById('meta-entries'),
 };
@@ -221,18 +224,15 @@ function createSampleBlob(kind) {
     c.strokeStyle = '#1e293b';
     c.lineWidth = 4;
     c.lineCap = 'round';
-    // Simple hand-drawn character face sketch
     c.beginPath();
     c.arc(256, 250, 120, 0, Math.PI * 2);
     c.stroke();
-    // Hair strokes
     for (let i = -3; i <= 3; i++) {
       c.beginPath();
       c.moveTo(256 + i * 28, 125);
       c.quadraticCurveTo(256 + i * 35, 175, 256 + i * 20, 200);
       c.stroke();
     }
-    // Eyes & smile
     c.beginPath();
     c.arc(212, 245, 12, 0, Math.PI * 2);
     c.arc(300, 245, 12, 0, Math.PI * 2);
@@ -241,7 +241,6 @@ function createSampleBlob(kind) {
     c.arc(256, 278, 36, 0.15 * Math.PI, 0.85 * Math.PI);
     c.stroke();
   } else {
-    // Glossy synthetic gradient + geometric render
     const grad = c.createLinearGradient(0, 0, 512, 512);
     grad.addColorStop(0, '#0f172a');
     grad.addColorStop(0.5, '#6d28d9');
@@ -298,6 +297,14 @@ function classifyLabelSemantics(rawLabel) {
   };
 }
 
+function escapeHtml(str) {
+  return String(str)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;');
+}
+
 function renderMetadata(meta) {
   elements.metaSignals.innerHTML = '';
   elements.metaEntries.innerHTML = '';
@@ -331,15 +338,7 @@ function renderMetadata(meta) {
   }
 }
 
-function escapeHtml(str) {
-  return String(str)
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;');
-}
-
-function renderResults({ results, elapsedMs, device, meta }) {
+function renderResults({ results, scaleResults = [], elapsedMs, device, meta }) {
   elements.resultEmpty.classList.add('hidden');
   elements.resultCard.classList.remove('hidden');
 
@@ -352,7 +351,7 @@ function renderResults({ results, elapsedMs, device, meta }) {
   elements.verdictLabel.textContent = topInfo.isAi
     ? `判定: AI生成の可能性が高い (${pct}%)`
     : `判定: 手描き・人間制作の可能性が高い (${pct}%)`;
-  elements.verdictSub.textContent = `推論時間: ${elapsedMs}ms ・ 実行バックエンド: ${device.toUpperCase()} ・ 対象: ${meta.fileName}`;
+  elements.verdictSub.textContent = `推論時間: ${elapsedMs}ms ・ バックエンド: ${device.toUpperCase()} ・ 対象: ${meta.fileName}`;
 
   elements.scoresList.innerHTML = '';
   for (const item of sorted) {
@@ -370,6 +369,24 @@ function renderResults({ results, elapsedMs, device, meta }) {
       </div>
     `;
     elements.scoresList.appendChild(row);
+  }
+
+  if (scaleResults.length > 0) {
+    elements.scalesSection.classList.remove('hidden');
+    elements.scalesList.innerHTML = '';
+    for (const sr of scaleResults) {
+      const aiPct = (sr.aiScore * 100).toFixed(1);
+      const isAi = sr.aiScore >= 0.5;
+      const chip = document.createElement('div');
+      chip.className = `scale-chip ${isAi ? 'is-ai' : 'is-human'}`;
+      chip.innerHTML = `
+        <span class="scale-name">${escapeHtml(sr.name)}</span>
+        <span class="scale-val">AI ${aiPct}%</span>
+      `;
+      elements.scalesList.appendChild(chip);
+    }
+  } else {
+    elements.scalesSection.classList.add('hidden');
   }
 
   renderMetadata(meta);
@@ -404,6 +421,7 @@ async function runAnalysis() {
     id: requestId,
     type: 'classify',
     modelKey: elements.modelSelect.value,
+    multiScale: elements.multiScaleToggle.checked,
     blob: targetBlob,
   });
 }
@@ -449,6 +467,7 @@ worker.addEventListener('message', (event) => {
     elements.runtimeBadge.textContent = `${msg.device.toUpperCase()} ・ ${msg.elapsedMs}ms`;
     renderResults({
       results: msg.results,
+      scaleResults: msg.scaleResults,
       elapsedMs: msg.elapsedMs,
       device: msg.device,
       meta: activeMeta,

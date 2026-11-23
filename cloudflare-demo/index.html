@@ -29,7 +29,7 @@
           <a href="https://github.com/Divith123/DeepSecure-AI" target="_blank" rel="noopener noreferrer">
             DeepSecure-AI
           </a>
-          のフォークをベースに、ブラウザ上の ONNX Runtime Web / Transformers.js でイラストや画像を解析します。
+          のフォークをベースに、マルチスケール ONNX 推論で ChatGPT / FLUX / SD 系 AI絵と手描きイラストをブラウザ内で判定します。
         </p>
       </header>
 
@@ -40,14 +40,27 @@
             <div class="model-select-wrap">
               <label for="model-select">判定モデル</label>
               <select id="model-select">
-                <option value="anime-vit" selected>
-                  イラスト・アニメ絵特化 (ViT 512px / 約64MB)
+                <option value="detectra-openfake" selected>
+                  ChatGPT・最新AI対応汎用 (Detectra-OpenFake / 30MB・非商用)
+                </option>
+                <option value="detectra-v1">
+                  最新汎用・手描きアニメ対応 (Detectra v3 / 44MB・MIT)
+                </option>
+                <option value="anime-vit">
+                  2Dアニメ・SD/NAI特化 (Anime ViT 512px / 64MB・Apache-2.0)
                 </option>
                 <option value="distilled-vit">
-                  軽量・汎用テスト用 (Distilled ViT 224px / 約11MB)
+                  超軽量テスト用 (Distilled ViT 224px / 11MB・MIT)
                 </option>
               </select>
             </div>
+          </div>
+
+          <div class="options-row">
+            <label class="checkbox-label">
+              <input id="multiscale-toggle" type="checkbox" checked />
+              <span>マルチスケール・パッチ推論を有効にする（高解像度画像の縮小による判定劣化・QR/枠の影響を軽減）</span>
+            </label>
           </div>
 
           <div class="tabs" role="tablist">
@@ -86,7 +99,7 @@
                 ✏️ 手描き風ラフスケッチを生成して判定
               </button>
               <button type="button" class="chip-btn" data-sample="gradient-synth">
-                ✨ AI風グラデーション合成画像を生成して判定
+                ✨ 合成グラデーション画像を生成して判定
               </button>
             </div>
 
@@ -117,7 +130,7 @@
               <canvas id="sketch-canvas" width="512" height="512"></canvas>
             </div>
             <p class="draw-hint">
-              マウスやタッチでイラストを描いて「この絵を判定する」を押すと、実際の推論パイプラインで検証できます。
+              マウスやタッチでイラストを描いて「判定を実行する」を押すと、実際の推論パイプラインで検証できます。
             </p>
           </div>
 
@@ -141,16 +154,16 @@
 
         <section class="panel result-panel">
           <div class="panel-header">
-            <h2>2. 判定結果 &amp; メタデータ解析</h2>
+            <h2>2. 判定結果 &amp; スケール別解析</h2>
             <span id="runtime-badge" class="runtime-badge">待機中</span>
           </div>
 
           <div id="result-empty" class="result-empty">
             <p>左側から画像を選択するか、手描きキャンバスに絵を描いて「判定を実行する」をクリックしてください。</p>
             <ul class="info-list">
-              <li>初回のみ Hugging Face Hub から量子化 ONNX モデルを取得し、ブラウザにキャッシュします。</li>
-              <li>2回目以降はオフラインキャッシュから高速に推論が実行されます。</li>
-              <li>元の DeepSecure-AI は顔ディープフェイク用 Python/Gradio アプリですが、本デモではイラスト・画像判定向けモデルへ差し替えています。</li>
+              <li><strong>ChatGPT・最新AI対応汎用 (Detectra-OpenFake)</strong> を初期モデルに採用し、GPT-Image / FLUX / DALL-E 3 / 絵画・手描きまで幅広く判定します。</li>
+              <li><strong>マルチスケール・パッチ推論</strong> により、全体縮小だけでなく高精細クロップ（768px・原寸1:1）も併用して微細なAI生成痕を検出します。</li>
+              <li>初回のみ Hugging Face Hub からモデルを取得し、ブラウザの Cache API に保存します。</li>
             </ul>
           </div>
 
@@ -161,18 +174,23 @@
             </div>
 
             <div class="scores-section">
-              <h3>クラス別スコア</h3>
+              <h3>総合スコア</h3>
               <div id="scores-list" class="scores-list"></div>
             </div>
 
+            <div id="scales-section" class="scales-section hidden">
+              <h3>スケール別 AI 判定内訳（最大値を総合スコアに採用）</h3>
+              <div id="scales-list" class="scales-list"></div>
+            </div>
+
             <div class="meta-section">
-              <h3>クライアント側メタデータ検査 (PNG/EXIF)</h3>
+              <h3>クライアント側メタデータ検査 (PNG/C2PA/EXIF)</h3>
               <div id="meta-signals" class="meta-signals"></div>
               <div id="meta-entries" class="meta-entries"></div>
             </div>
 
             <div class="disclaimer">
-              <strong>注意:</strong> AI判定モデルのスコアは統計的な推定であり、100%の真偽を保証するものではありません。SNS再圧縮や加工・作風によって判定が揺れる場合があります。
+              <strong>注意:</strong> AI判定モデルのスコアは統計的な推定であり、100%の真偽を保証するものではありません。SNS再圧縮や加工・作風によって判定が揺れる場合があります（Detectra-OpenFake モデルは非商用デモ用途 CC BY-NC 4.0 です）。
             </div>
           </div>
         </section>

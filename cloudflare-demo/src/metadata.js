@@ -1,11 +1,11 @@
 /**
- * Client-side PNG chunk & binary string inspector for common AI generation metadata.
+ * Client-side PNG chunk & binary string inspector for AI generation and provenance metadata.
  * Runs 100% locally in the browser without uploading files.
  */
 
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 
-const AI_TEXT_KEYS = new Map([
+const KNOWN_TEXT_KEYS = new Map([
   ['parameters', 'Stable Diffusion (WebUI / Forge)'],
   ['prompt', 'ComfyUI Prompt JSON'],
   ['workflow', 'ComfyUI Workflow JSON'],
@@ -15,6 +15,8 @@ const AI_TEXT_KEYS = new Map([
   ['software', 'Software Tag'],
   ['source', 'Source Tag'],
   ['description', 'Description Tag'],
+  ['chm-protocol', 'Certified Handmade Protocol'],
+  ['chm-artwork-id', 'Certified Handmade Artwork ID'],
   ['xml:com.adobe.xmp', 'Adobe XMP Metadata'],
 ]);
 
@@ -23,9 +25,9 @@ const AI_SIGNATURE_PATTERNS = [
   { pattern: /ComfyUI/i, label: 'ComfyUI' },
   { pattern: /Automatic1111|Steps:\s*\d+,\s*Sampler:/i, label: 'Stable Diffusion WebUI' },
   { pattern: /Midjourney/i, label: 'Midjourney' },
-  { pattern: /DALL-E|DALL·E/i, label: 'DALL-E' },
+  { pattern: /DALL-E|DALL·E|ChatGPT|GPT-4o|gpt-image/i, label: 'OpenAI / DALL-E / ChatGPT' },
   { pattern: /Adobe Firefly/i, label: 'Adobe Firefly' },
-  { pattern: /c2pa|jumbf/i, label: 'C2PA Content Credentials' },
+  { pattern: /c2pa|jumbf|caBX/i, label: 'C2PA Content Credentials' },
   { pattern: /trainedAlgorithmicMedia/i, label: 'IPTC/C2PA Trained Algorithmic Media' },
 ];
 
@@ -42,12 +44,13 @@ function decodeLatin1(bytes) {
   return out;
 }
 
-function extractPngTextChunks(buffer) {
+function extractPngChunks(buffer) {
   const bytes = new Uint8Array(buffer);
-  if (!isPng(bytes)) return [];
+  if (!isPng(bytes)) return { textChunks: [], hasC2paChunk: false };
 
   const view = new DataView(buffer);
-  const chunks = [];
+  const textChunks = [];
+  let hasC2paChunk = false;
   let offset = 8;
 
   while (offset + 12 <= bytes.length) {
@@ -63,6 +66,10 @@ function extractPngTextChunks(buffer) {
 
     if (dataEnd + 4 > bytes.length) break;
 
+    if (type === 'caBX') {
+      hasC2paChunk = true;
+    }
+
     if (type === 'tEXt' || type === 'iTXt') {
       const chunkBytes = bytes.slice(dataStart, dataEnd);
       const nullIdx = chunkBytes.indexOf(0);
@@ -70,9 +77,7 @@ function extractPngTextChunks(buffer) {
         const key = decodeLatin1(chunkBytes.slice(0, nullIdx));
         let valueBytes = chunkBytes.slice(nullIdx + 1);
         if (type === 'iTXt' && valueBytes.length > 4) {
-          // Skip compression flag (1), compression method (1), language tag\0, translated keyword\0
-          let pos = 2;
-          const langEnd = valueBytes.indexOf(0, pos);
+          const langEnd = valueBytes.indexOf(0, 2);
           if (langEnd !== -1) {
             const transEnd = valueBytes.indexOf(0, langEnd + 1);
             if (transEnd !== -1) {
@@ -81,32 +86,35 @@ function extractPngTextChunks(buffer) {
           }
         }
         const value = new TextDecoder('utf-8', { fatal: false }).decode(valueBytes).slice(0, 600);
-        chunks.push({ type, key, value });
+        textChunks.push({ type, key, value });
       }
     }
 
     if (type === 'IEND') break;
-    offset = dataEnd + 4; // skip CRC
+    offset = dataEnd + 4;
   }
 
-  return chunks;
+  return { textChunks, hasC2paChunk };
 }
 
 export async function inspectImageMetadata(blob, fileName = 'image') {
   const buffer = await blob.arrayBuffer();
   const bytes = new Uint8Array(buffer);
-  const pngChunks = extractPngTextChunks(buffer);
+  const { textChunks, hasC2paChunk } = extractPngChunks(buffer);
 
-  // Scan first 256KB for readable ASCII metadata signatures (EXIF/XMP/PNG)
   const scanLimit = Math.min(bytes.length, 262144);
   const asciiProbe = decodeLatin1(bytes.slice(0, scanLimit));
 
   const detectedSignals = [];
   const extractedEntries = [];
 
-  for (const chunk of pngChunks) {
+  if (hasC2paChunk) {
+    detectedSignals.push('C2PA Content Credentials (PNG caBX)');
+  }
+
+  for (const chunk of textChunks) {
     const normalizedKey = chunk.key.toLowerCase();
-    const knownLabel = AI_TEXT_KEYS.get(normalizedKey);
+    const knownLabel = KNOWN_TEXT_KEYS.get(normalizedKey);
     if (knownLabel || chunk.value.length > 0) {
       extractedEntries.push({
         key: chunk.key,
@@ -115,7 +123,9 @@ export async function inspectImageMetadata(blob, fileName = 'image') {
       });
     }
     if (normalizedKey === 'parameters' || normalizedKey === 'prompt' || normalizedKey === 'workflow') {
-      detectedSignals.push(knownLabel);
+      if (!detectedSignals.includes(knownLabel)) {
+        detectedSignals.push(knownLabel);
+      }
     }
   }
 
@@ -132,6 +142,6 @@ export async function inspectImageMetadata(blob, fileName = 'image') {
     byteLength: bytes.length,
     isPng: isPng(bytes),
     detectedSignals,
-    extractedEntries: extractedEntries.slice(0, 6),
+    extractedEntries: extractedEntries.slice(0, 8),
   };
 }

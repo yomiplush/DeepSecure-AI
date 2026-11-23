@@ -119,7 +119,7 @@ a:hover {
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 .panel-header h2 {
@@ -142,7 +142,25 @@ a:hover {
   border-radius: 8px;
   padding: 6px 10px;
   font-size: 13px;
-  max-width: 280px;
+  max-width: 310px;
+}
+
+.options-row {
+  margin-bottom: 14px;
+}
+
+.checkbox-label {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.checkbox-label input {
+  margin-top: 3px;
+  accent-color: var(--accent);
 }
 
 .tabs {
@@ -426,6 +444,7 @@ a:hover {
 }
 
 .scores-section h3,
+.scales-section h3,
 .meta-section h3 {
   font-size: 13.5px;
   margin: 0 0 10px;
@@ -435,7 +454,48 @@ a:hover {
 .scores-list {
   display: grid;
   gap: 10px;
-  margin-bottom: 20px;
+  margin-bottom: 18px;
+}
+
+.scales-section {
+  margin-bottom: 18px;
+}
+
+.scales-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.scale-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+}
+
+.scale-chip.is-ai {
+  border-color: rgba(249, 115, 22, 0.5);
+}
+
+.scale-chip.is-human {
+  border-color: rgba(34, 197, 94, 0.4);
+}
+
+.scale-val {
+  font-weight: 700;
+}
+
+.scale-chip.is-ai .scale-val {
+  color: #fdba74;
+}
+
+.scale-chip.is-human .scale-val {
+  color: #86efac;
 }
 
 .score-row {
