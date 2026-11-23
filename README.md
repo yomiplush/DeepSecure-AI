@@ -1,5 +1,9 @@
 # DeepSecure-AI
 
+> **Cloudflare Pages Demo Added (`cloudflare-demo/`)**:  
+> このフォークでは、ブラウザ上で動作する **「AI絵 vs 手描き絵 判定デモ」** を [`cloudflare-demo/`](cloudflare-demo/README.md) に追加しています。  
+> Cloudflare Pages では **Root directory: `cloudflare-demo`** / **Build command: `npm run build`** / **Output directory: `dist`** を指定するだけでデプロイできます。
+
 DeepSecure-AI is a powerful open-source tool designed to detect fake images, videos, and audios. Utilizing state-of-the-art deep learning techniques like EfficientNetV2 and MTCNN, DeepSecure-AI offers frame-by-frame video analysis, enabling high-accuracy deepfake detection. It's developed with a focus on ease of use, making it accessible for researchers, developers, and security analysts...
 
 ---

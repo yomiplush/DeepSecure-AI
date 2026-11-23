@@ -1,0 +1,18 @@
+{
+  "name": "deepsecure-ai-art-detector-demo",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Cloudflare Pages browser-only AI art vs hand-drawn illustration detector demo built on DeepSecure-AI fork",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "^4.3.2"
+  },
+  "devDependencies": {
+    "vite": "^8.3.8"
+  }
+}

@@ -1,1 +1,4 @@
 checkpoints/RawNet2.pth
+cloudflare-demo/node_modules/
+cloudflare-demo/dist/
+cloudflare-demo/.wrangler/

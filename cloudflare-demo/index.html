@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DeepSecure-AI Art Detector | AI絵 vs 手描き絵 判定デモ</title>
+    <meta
+      name="description"
+      content="Cloudflare Pages上で完全ブラウザ推論する「AI絵 vs 手描き絵」判定デモ（DeepSecure-AI Fork）"
+    />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="hero">
+        <div class="hero-badges">
+          <span class="badge badge-primary">Cloudflare Pages Static Demo</span>
+          <span class="badge badge-success">100% ブラウザ内推論 (サーバー送信なし)</span>
+          <a
+            class="badge badge-link"
+            href="https://github.com/yomiplush/DeepSecure-AI"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            GitHub Fork ↗
+          </a>
+        </div>
+        <h1>AI絵 vs 手描き絵 判定デモ</h1>
+        <p class="hero-sub">
+          <a href="https://github.com/Divith123/DeepSecure-AI" target="_blank" rel="noopener noreferrer">
+            DeepSecure-AI
+          </a>
+          のフォークをベースに、ブラウザ上の ONNX Runtime Web / Transformers.js でイラストや画像を解析します。
+        </p>
+      </header>
+
+      <main class="grid-layout">
+        <section class="panel input-panel">
+          <div class="panel-header">
+            <h2>1. 画像の入力 &amp; モデル選択</h2>
+            <div class="model-select-wrap">
+              <label for="model-select">判定モデル</label>
+              <select id="model-select">
+                <option value="anime-vit" selected>
+                  イラスト・アニメ絵特化 (ViT 512px / 約64MB)
+                </option>
+                <option value="distilled-vit">
+                  軽量・汎用テスト用 (Distilled ViT 224px / 約11MB)
+                </option>
+              </select>
+            </div>
+          </div>
+
+          <div class="tabs" role="tablist">
+            <button
+              id="tab-upload"
+              class="tab-btn active"
+              type="button"
+              role="tab"
+              aria-selected="true"
+            >
+              画像アップロード / Ctrl+V
+            </button>
+            <button
+              id="tab-draw"
+              class="tab-btn"
+              type="button"
+              role="tab"
+              aria-selected="false"
+            >
+              その場で手描きテスト
+            </button>
+          </div>
+
+          <!-- Tab 1: Upload / Paste / Samples -->
+          <div id="pane-upload" class="tab-pane active">
+            <div id="dropzone" class="dropzone" tabindex="0">
+              <input id="file-input" type="file" accept="image/*" hidden />
+              <div class="dropzone-icon">🖼️</div>
+              <p class="dropzone-title">画像をドラッグ＆ドロップ、またはクリックして選択</p>
+              <p class="dropzone-hint">PNG / JPEG / WebP 対応 ・ クリップボード貼付 (Ctrl+V / Cmd+V) も可能</p>
+            </div>
+
+            <div class="samples-bar">
+              <span class="samples-label">クイックサンプル（ブラウザ生成テスト画像）:</span>
+              <button type="button" class="chip-btn" data-sample="hand-sketch">
+                ✏️ 手描き風ラフスケッチを生成して判定
+              </button>
+              <button type="button" class="chip-btn" data-sample="gradient-synth">
+                ✨ AI風グラデーション合成画像を生成して判定
+              </button>
+            </div>
+
+            <div id="preview-wrap" class="preview-wrap hidden">
+              <img id="preview-image" alt="判定対象プレビュー" />
+              <div class="preview-meta" id="preview-dimensions"></div>
+            </div>
+          </div>
+
+          <!-- Tab 2: Hand-drawing Canvas -->
+          <div id="pane-draw" class="tab-pane">
+            <div class="draw-toolbar">
+              <label>
+                ペンの色
+                <input id="brush-color" type="color" value="#1e293b" />
+              </label>
+              <label>
+                太さ
+                <input id="brush-size" type="range" min="2" max="24" value="5" />
+                <span id="brush-size-label">5px</span>
+              </label>
+              <div class="draw-actions">
+                <button id="btn-undo" type="button" class="btn-secondary">戻す</button>
+                <button id="btn-clear" type="button" class="btn-secondary">クリア</button>
+              </div>
+            </div>
+            <div class="canvas-wrap">
+              <canvas id="sketch-canvas" width="512" height="512"></canvas>
+            </div>
+            <p class="draw-hint">
+              マウスやタッチでイラストを描いて「この絵を判定する」を押すと、実際の推論パイプラインで検証できます。
+            </p>
+          </div>
+
+          <div class="action-bar">
+            <button id="analyze-btn" type="button" class="btn-primary" disabled>
+              判定を実行する
+            </button>
+            <div id="model-status" class="status-pill">モデル未読込（初回実行時に自動ダウンロード）</div>
+          </div>
+
+          <div id="progress-wrap" class="progress-wrap hidden">
+            <div class="progress-label-row">
+              <span id="progress-file">モデルをダウンロード中...</span>
+              <span id="progress-pct">0%</span>
+            </div>
+            <div class="progress-track">
+              <div id="progress-bar" class="progress-bar" style="width: 0%"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel result-panel">
+          <div class="panel-header">
+            <h2>2. 判定結果 &amp; メタデータ解析</h2>
+            <span id="runtime-badge" class="runtime-badge">待機中</span>
+          </div>
+
+          <div id="result-empty" class="result-empty">
+            <p>左側から画像を選択するか、手描きキャンバスに絵を描いて「判定を実行する」をクリックしてください。</p>
+            <ul class="info-list">
+              <li>初回のみ Hugging Face Hub から量子化 ONNX モデルを取得し、ブラウザにキャッシュします。</li>
+              <li>2回目以降はオフラインキャッシュから高速に推論が実行されます。</li>
+              <li>元の DeepSecure-AI は顔ディープフェイク用 Python/Gradio アプリですが、本デモではイラスト・画像判定向けモデルへ差し替えています。</li>
+            </ul>
+          </div>
+
+          <div id="result-card" class="result-card hidden">
+            <div id="verdict-banner" class="verdict-banner">
+              <div class="verdict-label" id="verdict-label">-</div>
+              <div class="verdict-sub" id="verdict-sub">-</div>
+            </div>
+
+            <div class="scores-section">
+              <h3>クラス別スコア</h3>
+              <div id="scores-list" class="scores-list"></div>
+            </div>
+
+            <div class="meta-section">
+              <h3>クライアント側メタデータ検査 (PNG/EXIF)</h3>
+              <div id="meta-signals" class="meta-signals"></div>
+              <div id="meta-entries" class="meta-entries"></div>
+            </div>
+
+            <div class="disclaimer">
+              <strong>注意:</strong> AI判定モデルのスコアは統計的な推定であり、100%の真偽を保証するものではありません。SNS再圧縮や加工・作風によって判定が揺れる場合があります。
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
